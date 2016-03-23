@@ -2,7 +2,7 @@
 //  aqofflinerenderer.swift
 //  AQOfflineRenderTest
 //
-//  Created by 開発 on 2015/10/18.
+//  Translated by OOPer in cooperation with shlab.jp, on 2015/10/18.
 //
 //
 /*
@@ -241,7 +241,7 @@ func DoAQOfflineRender(sourceURL: NSURL, _ destinationURL: NSURL) {
         var aclSize = 0
         if err == noErr && size > 0 {
             aclSize = Int(size)
-            acl = UnsafeMutablePointer(UnsafeMutablePointer<RawByte>.alloc(aclSize))
+            acl = UnsafeMutablePointer(UnsafeMutablePointer<CChar>.alloc(aclSize))
             try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile, kAudioFilePropertyChannelLayout, &size, acl), "get audio file's channel layout")
             try XThrowIfError(AudioQueueSetProperty(myInfo.mQueue, kAudioQueueProperty_ChannelLayout, acl, size), "set channel layout on queue")
         }
@@ -302,7 +302,7 @@ func DoAQOfflineRender(sourceURL: NSURL, _ destinationURL: NSURL) {
         // we need to enqueue a buffer after the queue has started
         AQTestBufferCallback(&myInfo, myInfo.mQueue, myInfo.mBuffer)
         
-        for;; {
+        while true {
             let reqFrames = captureBufferByteSize / captureFormat.mBytesPerFrame
             
             try XThrowIfError(AudioQueueOfflineRender(myInfo.mQueue, &ts, captureBuffer, reqFrames), "AudioQueueOfflineRender")
@@ -327,7 +327,7 @@ func DoAQOfflineRender(sourceURL: NSURL, _ destinationURL: NSURL) {
         try XThrowIfError(ExtAudioFileDispose(captureFile), "ExtAudioFileDispose failed")
         
         if myInfo.mPacketDescs != nil {myInfo.mPacketDescs.dealloc(Int(myInfo.mNumPacketsToRead))}
-        if acl != nil {UnsafeMutablePointer<RawByte>(acl).dealloc(aclSize)}
+        if acl != nil {UnsafeMutablePointer<CChar>(acl).dealloc(aclSize)}
     } catch let e as CAXException {
         fputs("Error: \(e.mOperation) \(e.formatError())", stderr)
     } catch _ {

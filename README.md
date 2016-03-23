@@ -13,7 +13,7 @@ You should not contact to Apple or SHLab(jp) about any faults caused by my trans
 ===========================================================================
 BUILD REQUIREMENTS:
 
-Xcode 7, iOS SDK 9
+Xcode 7.3, iOS SDK 9
 
 ===========================================================================
 Files under iPublicUtility are not fully translated. Their license terms are kept there just to indicate the original files.

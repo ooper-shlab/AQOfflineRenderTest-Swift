@@ -2,7 +2,7 @@
 //  MyViewController.swift
 //  AQOfflineRenderTest
 //
-//  Created by 開発 on 2015/10/18.
+//  Translated by OOPer in cooperation with shlab.jp, on 2015/10/18.
 //
 //
 /*
@@ -56,8 +56,12 @@
 import UIKit
 import AVFoundation
 
+@objc protocol UIViewProtocol {
+    // default = NULL. -animationDidStop:(NSString *)animationID finished:(NSNumber *)finished context:(void *)context
+    optional func animationDidStop(animationID: String, finished: NSNumber, context: UnsafeMutablePointer<Void>)
+}
 @objc(MyViewController)
-class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayerDelegate {
+class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayerDelegate, UIViewProtocol {
     @IBOutlet private(set) var instructionsView: UIView!
     @IBOutlet private(set) var webView: UIWebView!
     @IBOutlet private(set) var contentView: UIView!
@@ -101,13 +105,13 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
         
         // add our custom flip buttons as the nav bars custom right view
         let infoButton = UIButton(type: .InfoLight)
-        infoButton.addTarget(self, action: "flipAction:", forControlEvents: .TouchUpInside)
+        infoButton.addTarget(self, action: #selector(MyViewController.flipAction(_:)), forControlEvents: .TouchUpInside)
         
         flipButton = UIBarButtonItem(customView: infoButton)
         self.navigationItem.rightBarButtonItem = flipButton
         
         // create our done button as the nav bar's custom right view for the flipped view (used later)
-        doneButton = UIBarButtonItem(barButtonSystemItem: .Done, target: self, action: "flipAction:")
+        doneButton = UIBarButtonItem(barButtonSystemItem: .Done, target: self, action: #selector(MyViewController.flipAction(_:)))
     }
     
     override func didReceiveMemoryWarning() {
@@ -122,7 +126,7 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
     
     func flipAction(_: AnyObject) {
         UIView.setAnimationDelegate(self)
-        UIView.setAnimationDidStopSelector("animationDidStop:animationIDfinished:finished:context:")
+        UIView.setAnimationDidStopSelector(#selector(UIViewProtocol.animationDidStop(_:finished:context:)))
         UIView.beginAnimations(nil, context: nil)
         UIView.setAnimationDuration(kTransitionDuration)
         
