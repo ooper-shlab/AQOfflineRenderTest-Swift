@@ -58,7 +58,7 @@ import AVFoundation
 
 @objc protocol UIViewProtocol {
     // default = NULL. -animationDidStop:(NSString *)animationID finished:(NSNumber *)finished context:(void *)context
-    optional func animationDidStop(animationID: String, finished: NSNumber, context: UnsafeMutablePointer<Void>)
+    @objc optional func animationDidStop(_ animationID: String, finished: NSNumber, context: UnsafeMutablePointer<Void>)
 }
 @objc(MyViewController)
 class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayerDelegate, UIViewProtocol {
@@ -72,46 +72,47 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
     @IBOutlet private(set) var flipButton: UIBarButtonItem!
     @IBOutlet private(set) var doneButton: UIBarButtonItem!
     
-    private var sourceURL: NSURL?
-    private var destinationURL: NSURL?
+    private var sourceURL: URL?
+    private var destinationURL: URL?
     
     let kTransitionDuration = 0.75
     
-    let offlineRenderingQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)
+//    let offlineRenderingQueue = DispatchQueue.global(priority: DispatchQueue.GlobalQueuePriority.default)
+        let offlineRenderingQueue = DispatchQueue.global()
     
     override func viewDidLoad() {
         // create the URLs we'll use for source and destination
-        sourceURL = NSBundle.mainBundle().URLForResource("soundalac", withExtension: "caf")
+        sourceURL = Bundle.main.url(forResource: "soundalac", withExtension: "caf")
         
-        let urls = NSFileManager.defaultManager().URLsForDirectory(NSSearchPathDirectory.DocumentDirectory, inDomains: NSSearchPathDomainMask.UserDomainMask)
+        let urls = FileManager.default.urls(for: FileManager.SearchPathDirectory.documentDirectory, in: FileManager.SearchPathDomainMask.userDomainMask)
         let documentsDirectory = urls[0]
-        destinationURL = documentsDirectory.URLByAppendingPathComponent("output.caf")
+        destinationURL = documentsDirectory.appendingPathComponent("output.caf")
         
         // load up the info text
-        let infoSouceFile = NSBundle.mainBundle().URLForResource("info", withExtension: "html")!
-        let infoText = try! String(contentsOfURL: infoSouceFile, encoding: NSUTF8StringEncoding)
+        let infoSouceFile = Bundle.main.url(forResource: "info", withExtension: "html")!
+        let infoText = try! String(contentsOf: infoSouceFile, encoding: String.Encoding.utf8)
         self.webView.loadHTMLString(infoText, baseURL: nil)
         
         // set up start button
-        let greenImage = UIImage(named: "green_button.png")!.stretchableImageWithLeftCapWidth(12, topCapHeight: 0)
-        let redImage = UIImage(named: "red_button.png")!.stretchableImageWithLeftCapWidth(12, topCapHeight: 0)
+        let greenImage = UIImage(named: "green_button.png")!.stretchableImage(withLeftCapWidth: 12, topCapHeight: 0)
+        let redImage = UIImage(named: "red_button.png")!.stretchableImage(withLeftCapWidth: 12, topCapHeight: 0)
         
-        startButton.setBackgroundImage(greenImage, forState: .Normal)
-        startButton.setBackgroundImage(redImage, forState: .Disabled)
-        startButton.enabled = true
+        startButton.setBackgroundImage(greenImage, for: UIControlState())
+        startButton.setBackgroundImage(redImage, for: .disabled)
+        startButton.isEnabled = true
         
         // add the subview
         self.view.addSubview(contentView)
         
         // add our custom flip buttons as the nav bars custom right view
-        let infoButton = UIButton(type: .InfoLight)
-        infoButton.addTarget(self, action: #selector(MyViewController.flipAction(_:)), forControlEvents: .TouchUpInside)
+        let infoButton = UIButton(type: .infoLight)
+        infoButton.addTarget(self, action: #selector(MyViewController.flipAction(_:)), for: .touchUpInside)
         
         flipButton = UIBarButtonItem(customView: infoButton)
         self.navigationItem.rightBarButtonItem = flipButton
         
         // create our done button as the nav bar's custom right view for the flipped view (used later)
-        doneButton = UIBarButtonItem(barButtonSystemItem: .Done, target: self, action: #selector(MyViewController.flipAction(_:)))
+        doneButton = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(MyViewController.flipAction(_:)))
     }
     
     override func didReceiveMemoryWarning() {
@@ -126,12 +127,12 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
     
     func flipAction(_: AnyObject) {
         UIView.setAnimationDelegate(self)
-        UIView.setAnimationDidStopSelector(#selector(UIViewProtocol.animationDidStop(_:finished:context:)))
+        UIView.setAnimationDidStop(#selector(UIViewProtocol.animationDidStop(_:finished:context:)))
         UIView.beginAnimations(nil, context: nil)
         UIView.setAnimationDuration(kTransitionDuration)
         
-        UIView.setAnimationTransition(self.contentView.superview != nil ? .FlipFromLeft : .FlipFromRight,
-            forView: self.view,
+        UIView.setAnimationTransition(self.contentView.superview != nil ? .flipFromLeft : .flipFromRight,
+            for: self.view,
             cache: true)
         
         if self.instructionsView.superview != nil {
@@ -153,31 +154,32 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
     }
     
     @IBAction func doSomethingAction(_: AnyObject) {
-        self.startButton.setTitle("Rendering Audio...", forState: .Disabled)
-        startButton.enabled = false
+        self.startButton.setTitle("Rendering Audio...", for: .disabled)
+        startButton.isEnabled = false
         
         self.activityIndicator.startAnimating()
         
         // run AQ code in a background thread
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)) {
+        DispatchQueue.global(qos: .default).async {
+//        DispatchQueue.global(priority: DispatchQueue.GlobalQueuePriority.default).async {
             self.renderAudio()
         }
     }
     
     //MARK:- AVAudioPlayer
-    func audioPlayerDidFinishPlaying(player: AVAudioPlayer, successfully flag: Bool) {
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         if !flag {NSLog("Playback finished unsuccessfully!")}
         
         player.delegate = nil
         self.player = nil
         
-        startButton.enabled = true
+        startButton.isEnabled = true
     }
     
     private var player: AVAudioPlayer? = nil
     private func playAudio() {
         // play the result
-        player = try? AVAudioPlayer(contentsOfURL: destinationURL!)
+        player = try? AVAudioPlayer(contentsOf: destinationURL!)
         
         player?.delegate = self
         player?.play()
@@ -189,17 +191,17 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
         autoreleasepool{
             
             // delete the previous output file if it exists, not required but good for the test
-            if let path = destinationURL?.path where NSFileManager.defaultManager().fileExistsAtPath(path) {
-                _ = try? NSFileManager.defaultManager().removeItemAtPath(path)
+            if let path = destinationURL?.path, FileManager.default.fileExists(atPath: path) {
+                _ = try? FileManager.default.removeItem(atPath: path)
             }
             
             DoAQOfflineRender(sourceURL!, destinationURL!)
             
             self.activityIndicator.stopAnimating()
             
-            self.startButton.setTitle("Playing Rendered Audio...", forState: .Disabled)
+            self.startButton.setTitle("Playing Rendered Audio...", for: .disabled)
             
-            dispatch_async(dispatch_get_main_queue()) {
+            DispatchQueue.main.async {
                 self.playAudio()
             }
             

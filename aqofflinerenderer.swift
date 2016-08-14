@@ -62,15 +62,16 @@ import AudioToolbox.ExtendedAudioFile
 
 // the application specific info we keep track of
 struct AQTestInfo {
-    var mAudioFile: AudioFileID = nil
+    var mAudioFile: AudioFileID? = nil
     var mDataFormat: CAStreamBasicDescription = CAStreamBasicDescription()
-    var mQueue: AudioQueueRef = nil
-    var mBuffer: AudioQueueBufferRef = nil
+    var mQueue: AudioQueueRef? = nil
+    var mBuffer: AudioQueueBufferRef? = nil
     var mCurrentPacket: Int64 = 0
     var mNumPacketsToRead: UInt32 = 0
-    var mPacketDescs: UnsafeMutablePointer<AudioStreamPacketDescription> = nil
-    var mFlushed: DarwinBoolean = false
-    var mDone: DarwinBoolean = false
+    var mPacketDescs: UnsafeMutablePointer<AudioStreamPacketDescription>? = nil
+    var mFlushed: Bool = false
+    var mDone: Bool = false
+    var mBufferByteSize: UInt32 = 0 //###
 }
 
 //MARK:- Helper Functions
@@ -79,7 +80,7 @@ struct AQTestInfo {
 
 // we only use time here as a guideline
 // we are really trying to get somewhere between 16K and 64K buffers, but not allocate too much if we don't need it
-private func CalculateBytesForTime(inDesc: CAStreamBasicDescription, _ inMaxPacketSize: UInt32, _ inSeconds: Double, inout _ outBufferSize: UInt32, inout _ outNumPackets: UInt32) {
+private func CalculateBytesForTime(_ inDesc: CAStreamBasicDescription, _ inMaxPacketSize: UInt32, _ inSeconds: Double, _ outBufferSize: inout UInt32, _ outNumPackets: inout UInt32) {
     let maxBufferSize: UInt32 = 0x10000;   // limit size to 64K
     let minBufferSize: UInt32 = 0x4000;    // limit size to 16K
     
@@ -110,18 +111,20 @@ private func CalculateBytesForTime(inDesc: CAStreamBasicDescription, _ inMaxPack
 // ***********************
 // AudioQueueOutputCallback function used to push data into the audio queue
 
-private func AQTestBufferCallback(inUserData: UnsafeMutablePointer<Void>, _ inAQ: AudioQueueRef, _ inCompleteAQBuffer: AudioQueueBufferRef) {
-    let myInfo = UnsafeMutablePointer<AQTestInfo>(inUserData)
-    if myInfo.memory.mDone {return}
-    var numBytes: UInt32 = 0
-    var nPackets = myInfo.memory.mNumPacketsToRead
-    var result = AudioFileReadPackets(myInfo.memory.mAudioFile,      // The audio file from which packets of audio data are to be read.
+private let AQTestBufferCallback: AudioQueueOutputCallback = {(inUserData, inAQ, inCompleteAQBuffer)->Void in
+//private let AQTestBufferCallback: AudioQueueOutputCallback = {(_ inUserData: UnsafeMutablePointer<Void>, _ inAQ: AudioQueueRef, _ inCompleteAQBuffer: AudioQueueBufferRef)->Void in
+    guard let myInfo = UnsafeMutablePointer<AQTestInfo>(inUserData) else {return}
+    if myInfo.pointee.mDone {return}
+    var numBytes: UInt32 = myInfo.pointee.mBufferByteSize //###
+    print("numBytes=",numBytes)
+    var nPackets = myInfo.pointee.mNumPacketsToRead
+    var result = AudioFileReadPacketData(myInfo.pointee.mAudioFile!,      // The audio file from which packets of audio data are to be read.
         false,                   // Set to true to cache the data. Otherwise, set to false.
         &numBytes,               // On output, a pointer to the number of bytes actually returned.
-        myInfo.memory.mPacketDescs,    // A pointer to an array of packet descriptions that have been allocated.
-        myInfo.memory.mCurrentPacket,  // The packet index of the first packet you want to be returned.
+        myInfo.pointee.mPacketDescs,    // A pointer to an array of packet descriptions that have been allocated.
+        myInfo.pointee.mCurrentPacket,  // The packet index of the first packet you want to be returned.
         &nPackets,               // On input, a pointer to the number of packets to read. On output, the number of packets actually read.
-        inCompleteAQBuffer.memory.mAudioData); // A pointer to user-allocated memory.
+        inCompleteAQBuffer.pointee.mAudioData); // A pointer to user-allocated memory.
     if result != noErr {
         DebugMessageN1("Error reading from file: %d\n", Int32(result))
         exit(1)
@@ -129,48 +132,48 @@ private func AQTestBufferCallback(inUserData: UnsafeMutablePointer<Void>, _ inAQ
     
     // we have some data
     if nPackets > 0 {
-        inCompleteAQBuffer.memory.mAudioDataByteSize = numBytes
+        inCompleteAQBuffer.pointee.mAudioDataByteSize = numBytes
         
         result = AudioQueueEnqueueBuffer(inAQ,                                  // The audio queue that owns the audio queue buffer.
             inCompleteAQBuffer,                    // The audio queue buffer to add to the buffer queue.
-            (myInfo.memory.mPacketDescs != nil ? nPackets : 0), // The number of packets of audio data in the inBuffer parameter. See Docs.
-            myInfo.memory.mPacketDescs);                 // An array of packet descriptions. Or NULL. See Docs.
+            (myInfo.pointee.mPacketDescs != nil ? nPackets : 0), // The number of packets of audio data in the inBuffer parameter. See Docs.
+            myInfo.pointee.mPacketDescs);                 // An array of packet descriptions. Or NULL. See Docs.
         if result != noErr {
             DebugMessageN1("Error enqueuing buffer: %d\n", Int32(result))
             exit(1)
         }
         
-        myInfo.memory.mCurrentPacket += Int64(nPackets)
+        myInfo.pointee.mCurrentPacket += Int64(nPackets)
         
     } else {
         // **** This ensures that we flush the queue when done -- ensures you get all the data out ****
         
-        if !myInfo.memory.mFlushed {
-            result = AudioQueueFlush(myInfo.memory.mQueue)
+        if !myInfo.pointee.mFlushed {
+            result = AudioQueueFlush(myInfo.pointee.mQueue!)
             
             if result != noErr {
                 DebugMessageN1("AudioQueueFlush failed: %d", Int32(result))
                 exit(1)
             }
             
-            myInfo.memory.mFlushed = true
+            myInfo.pointee.mFlushed = true
         }
         
-        result = AudioQueueStop(myInfo.memory.mQueue, false)
+        result = AudioQueueStop(myInfo.pointee.mQueue!, false)
         if result != noErr {
             DebugMessageN1("AudioQueueStop(false) failed: %d", Int32(result))
             exit(1)
         }
         
         // reading nPackets == 0 is our EOF condition
-        myInfo.memory.mDone = true
+        myInfo.pointee.mDone = true
     }
 }
 
 // ***********************
 //MARK:- Main Render Function
 
-func DoAQOfflineRender(sourceURL: NSURL, _ destinationURL: NSURL) {
+func DoAQOfflineRender(_ sourceURL: URL, _ destinationURL: URL) {
     // main audio queue code
     do {
         var myInfo: AQTestInfo = AQTestInfo()
@@ -184,7 +187,7 @@ func DoAQOfflineRender(sourceURL: NSURL, _ destinationURL: NSURL) {
         try XThrowIfError(AudioFileOpenURL(sourceURL, fsRdPerm, 0/*inFileTypeHint*/, &myInfo.mAudioFile), "AudioFileOpen failed")
         
         var size = UInt32(sizeofValue(myInfo.mDataFormat))
-        try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile, kAudioFilePropertyDataFormat, &size, &myInfo.mDataFormat), "couldn't get file's data format")
+        try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile!, kAudioFilePropertyDataFormat, &size, &myInfo.mDataFormat), "couldn't get file's data format")
         
         print("File format: \(myInfo.mDataFormat)")
         
@@ -194,7 +197,7 @@ func DoAQOfflineRender(sourceURL: NSURL, _ destinationURL: NSURL) {
             &myInfo,                  // A custom data structure for use with the callback function.
             CFRunLoopGetCurrent(),    // The event loop on which the callback function pointed to by the inCallbackProc parameter is to be called.
             // If you specify NULL, the callback is invoked on one of the audio queue’s internal threads.
-            kCFRunLoopCommonModes,    // The run loop mode in which to invoke the callback function specified in the inCallbackProc parameter.
+            CFRunLoopMode.commonModes.rawValue,    // The run loop mode in which to invoke the callback function specified in the inCallbackProc parameter.
             0,                        // Reserved for future use. Must be 0.
             &myInfo.mQueue),          // On output, the newly created playback audio queue object.
             "AudioQueueNew failed")
@@ -210,52 +213,53 @@ func DoAQOfflineRender(sourceURL: NSURL, _ destinationURL: NSURL) {
             // than our allocation default size, that needs to become larger
             var maxPacketSize: UInt32 = 0
             size = UInt32(sizeofValue(maxPacketSize))
-            try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile, kAudioFilePropertyPacketSizeUpperBound, &size, &maxPacketSize), "couldn't get file's max packet size")
+            try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile!, kAudioFilePropertyPacketSizeUpperBound, &size, &maxPacketSize), "couldn't get file's max packet size")
             
             // adjust buffer size to represent about a second of audio based on this format
             CalculateBytesForTime(myInfo.mDataFormat, maxPacketSize, 1.0/*seconds*/, &bufferByteSize, &myInfo.mNumPacketsToRead)
             
             if isFormatVBR {
-                myInfo.mPacketDescs = UnsafeMutablePointer.alloc(Int(myInfo.mNumPacketsToRead))
+                myInfo.mPacketDescs = UnsafeMutablePointer.allocate(capacity: Int(myInfo.mNumPacketsToRead))
             } else {
                 myInfo.mPacketDescs = nil // we don't provide packet descriptions for constant bit rate formats (like linear PCM)
             }
+            myInfo.mBufferByteSize = bufferByteSize //###
             
             print("Buffer Byte Size: \(bufferByteSize), Num Packets to Read: \(myInfo.mNumPacketsToRead)")
         }
         
         // if the file has a magic cookie, we should get it and set it on the AQ
-        size = UInt32(sizeof(UInt32))
-        let result = AudioFileGetPropertyInfo(myInfo.mAudioFile, kAudioFilePropertyMagicCookieData, &size, nil)
+        size = UInt32(sizeof(UInt32.self))
+        let result = AudioFileGetPropertyInfo(myInfo.mAudioFile!, kAudioFilePropertyMagicCookieData, &size, nil)
         
         if result == 0 && size != 0 {
-            let cookie = UnsafeMutablePointer<CChar>.alloc(Int(size))
-            try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile, kAudioFilePropertyMagicCookieData, &size, cookie), "get cookie from file")
-            try XThrowIfError(AudioQueueSetProperty(myInfo.mQueue, kAudioQueueProperty_MagicCookie, cookie, size), "set cookie on queue")
-            cookie.dealloc(Int(size))
+            let cookie = UnsafeMutablePointer<CChar>.allocate(capacity: Int(size))
+            try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile!, kAudioFilePropertyMagicCookieData, &size, cookie), "get cookie from file")
+            try XThrowIfError(AudioQueueSetProperty(myInfo.mQueue!, kAudioQueueProperty_MagicCookie, cookie, size), "set cookie on queue")
+            cookie.deallocate(capacity: Int(size))
         }
         
         // channel layout?
-        let err = AudioFileGetPropertyInfo(myInfo.mAudioFile, kAudioFilePropertyChannelLayout, &size, nil)
-        var acl: UnsafeMutablePointer<AudioChannelLayout> = nil
+        let err = AudioFileGetPropertyInfo(myInfo.mAudioFile!, kAudioFilePropertyChannelLayout, &size, nil)
+        var acl: UnsafeMutablePointer<AudioChannelLayout>? = nil
         var aclSize = 0
         if err == noErr && size > 0 {
             aclSize = Int(size)
-            acl = UnsafeMutablePointer(UnsafeMutablePointer<CChar>.alloc(aclSize))
-            try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile, kAudioFilePropertyChannelLayout, &size, acl), "get audio file's channel layout")
-            try XThrowIfError(AudioQueueSetProperty(myInfo.mQueue, kAudioQueueProperty_ChannelLayout, acl, size), "set channel layout on queue")
+            acl = UnsafeMutablePointer(UnsafeMutablePointer<CChar>.allocate(capacity: aclSize))
+            try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile!, kAudioFilePropertyChannelLayout, &size, acl!), "get audio file's channel layout")
+            try XThrowIfError(AudioQueueSetProperty(myInfo.mQueue!, kAudioQueueProperty_ChannelLayout, acl!, size), "set channel layout on queue")
         }
         
         //allocate the input read buffer
-        try XThrowIfError(AudioQueueAllocateBuffer(myInfo.mQueue, bufferByteSize, &myInfo.mBuffer), "AudioQueueAllocateBuffer")
+        try XThrowIfError(AudioQueueAllocateBuffer(myInfo.mQueue!, bufferByteSize, &myInfo.mBuffer), "AudioQueueAllocateBuffer")
         
         // prepare a canonical interleaved capture format
         var captureFormat: CAStreamBasicDescription = CAStreamBasicDescription()
         captureFormat.mSampleRate = myInfo.mDataFormat.mSampleRate
         captureFormat.setAUCanonical(myInfo.mDataFormat.mChannelsPerFrame, interleaved: true) // interleaved
-        try XThrowIfError(AudioQueueSetOfflineRenderFormat(myInfo.mQueue, &captureFormat, acl), "set offline render format")
+        try XThrowIfError(AudioQueueSetOfflineRenderFormat(myInfo.mQueue!, &captureFormat, acl), "set offline render format")
         
-        var captureFile: ExtAudioFileRef = nil
+        var captureFile: ExtAudioFileRef? = nil
         
         // prepare a 16-bit int file format, sample channel count and sample rate
         var dstFormat = CAStreamBasicDescription()
@@ -269,65 +273,65 @@ func DoAQOfflineRender(sourceURL: NSURL, _ destinationURL: NSURL) {
         dstFormat.mFramesPerPacket = 1
         
         // create the capture file
-        try XThrowIfError(ExtAudioFileCreateWithURL(destinationURL, kAudioFileCAFType, &dstFormat, acl, AudioFileFlags.EraseFile.rawValue, &captureFile), "ExtAudioFileCreateWithURL")
+        try XThrowIfError(ExtAudioFileCreateWithURL(destinationURL, kAudioFileCAFType, &dstFormat, acl, AudioFileFlags.eraseFile.rawValue, &captureFile), "ExtAudioFileCreateWithURL")
         
         // set the capture file's client format to be the canonical format from the queue
-        try XThrowIfError(ExtAudioFileSetProperty(captureFile, kExtAudioFileProperty_ClientDataFormat, UInt32(strideof(AudioStreamBasicDescription)), &captureFormat), "set ExtAudioFile client format")
+        try XThrowIfError(ExtAudioFileSetProperty(captureFile!, kExtAudioFileProperty_ClientDataFormat, UInt32(strideof(AudioStreamBasicDescription.self)), &captureFormat), "set ExtAudioFile client format")
         
         // allocate the capture buffer, just keep it at half the size of the enqueue buffer
         // we don't ever want to pull any faster than we can push data in for render
         // this 2:1 ratio keeps the AQ Offline Render happy
         let captureBufferByteSize = bufferByteSize / 2
         
-        var captureBuffer: AudioQueueBufferRef = nil
+        var captureBuffer: AudioQueueBufferRef? = nil
         var captureABL: AudioBufferList = AudioBufferList()
         
-        try XThrowIfError(AudioQueueAllocateBuffer(myInfo.mQueue, captureBufferByteSize, &captureBuffer), "AudioQueueAllocateBuffer")
+        try XThrowIfError(AudioQueueAllocateBuffer(myInfo.mQueue!, captureBufferByteSize, &captureBuffer), "AudioQueueAllocateBuffer")
         
         captureABL.mNumberBuffers = 1 //### for statically allocated AudioBufferList, this needs to be 1.
-        captureABL.mBuffers.mData = captureBuffer.memory.mAudioData
+        captureABL.mBuffers.mData = captureBuffer?.pointee.mAudioData
         captureABL.mBuffers.mNumberChannels = captureFormat.mChannelsPerFrame
         
         // lets start playing now - stop is called in the AQTestBufferCallback when there's
         // no more to read from the file
-        try XThrowIfError(AudioQueueStart(myInfo.mQueue, nil), "AudioQueueStart failed")
+        try XThrowIfError(AudioQueueStart(myInfo.mQueue!, nil), "AudioQueueStart failed")
         
         var ts = AudioTimeStamp()
-        ts.mFlags = .SampleTimeValid
+        ts.mFlags = .sampleTimeValid
         ts.mSampleTime = 0
         
         // we need to call this once asking for 0 frames
-        try XThrowIfError(AudioQueueOfflineRender(myInfo.mQueue, &ts, captureBuffer, 0), "AudioQueueOfflineRender")
+        try XThrowIfError(AudioQueueOfflineRender(myInfo.mQueue!, &ts, captureBuffer!, 0), "AudioQueueOfflineRender")
         
         // we need to enqueue a buffer after the queue has started
-        AQTestBufferCallback(&myInfo, myInfo.mQueue, myInfo.mBuffer)
+        AQTestBufferCallback(&myInfo, myInfo.mQueue!, myInfo.mBuffer!)
         
         while true {
             let reqFrames = captureBufferByteSize / captureFormat.mBytesPerFrame
             
-            try XThrowIfError(AudioQueueOfflineRender(myInfo.mQueue, &ts, captureBuffer, reqFrames), "AudioQueueOfflineRender")
+            try XThrowIfError(AudioQueueOfflineRender(myInfo.mQueue!, &ts, captureBuffer!, reqFrames), "AudioQueueOfflineRender")
             
-            captureABL.mBuffers.mData = captureBuffer.memory.mAudioData
-            captureABL.mBuffers.mDataByteSize = captureBuffer.memory.mAudioDataByteSize
+            captureABL.mBuffers.mData = captureBuffer?.pointee.mAudioData
+            captureABL.mBuffers.mDataByteSize = (captureBuffer?.pointee.mAudioDataByteSize)!
             let writeFrames = captureABL.mBuffers.mDataByteSize / captureFormat.mBytesPerFrame
             
             print("t = \(ts.mSampleTime): AudioQueueOfflineRender:  req \(reqFrames) fr/\(captureBufferByteSize) bytes, got \(writeFrames) fr/\(captureABL.mBuffers.mDataByteSize) bytes")
             
-            try XThrowIfError(ExtAudioFileWrite(captureFile, writeFrames, &captureABL), "ExtAudioFileWrite")
+            try XThrowIfError(ExtAudioFileWrite(captureFile!, writeFrames, &captureABL), "ExtAudioFileWrite")
             
             if myInfo.mFlushed {break}
             
             ts.mSampleTime += Double(writeFrames)
         }
         
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1, false)
+        CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 1, false)
         
-        try XThrowIfError(AudioQueueDispose(myInfo.mQueue, true), "AudioQueueDispose(true) failed")
-        try XThrowIfError(AudioFileClose(myInfo.mAudioFile), "AudioQueueDispose(false) failed")
-        try XThrowIfError(ExtAudioFileDispose(captureFile), "ExtAudioFileDispose failed")
+        try XThrowIfError(AudioQueueDispose(myInfo.mQueue!, true), "AudioQueueDispose(true) failed")
+        try XThrowIfError(AudioFileClose(myInfo.mAudioFile!), "AudioQueueDispose(false) failed")
+        try XThrowIfError(ExtAudioFileDispose(captureFile!), "ExtAudioFileDispose failed")
         
-        if myInfo.mPacketDescs != nil {myInfo.mPacketDescs.dealloc(Int(myInfo.mNumPacketsToRead))}
-        if acl != nil {UnsafeMutablePointer<CChar>(acl).dealloc(aclSize)}
+        if myInfo.mPacketDescs != nil {myInfo.mPacketDescs?.deallocate(capacity: Int(myInfo.mNumPacketsToRead))}
+        if acl != nil {UnsafeMutablePointer<CChar>(acl!).deallocate(capacity: aclSize)}
     } catch let e as CAXException {
         fputs("Error: \(e.mOperation) \(e.formatError())", stderr)
     } catch _ {

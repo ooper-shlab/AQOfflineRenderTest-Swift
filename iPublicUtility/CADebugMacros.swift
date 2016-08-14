@@ -65,12 +65,12 @@ import CoreAudio
 //	This is a macro that does a sizeof and casts the result to a UInt32. This is useful for all the
 //	places where -wshorten64-32 catches assigning a sizeof expression to a UInt32.
 //	For want of a better place to park this, we'll park it here.
-func SizeOf32<T>(X: T) ->UInt32 {return UInt32(strideofValue(X))}
-func SizeOf32<T>(X: T.Type) ->UInt32 {return UInt32(strideof(T))}
+func SizeOf32<T>(_ X: T) ->UInt32 {return UInt32(strideofValue(X))}
+func SizeOf32<T>(_ X: T.Type) ->UInt32 {return UInt32(strideof(T.self))}
 
 
-func DebugMsg(inFormat: String, _ args: CVarArgType...) {}
+func DebugMsg(_ inFormat: String, _ args: CVarArg...) {}
 
 //	Old-style numbered DebugMessage calls are implemented in terms of DebugMsg() now
-func DebugMessageN1(msg: String, _ N1: CVarArgType) {DebugMsg(msg, N1)}
-func DebugMessageN2(msg: String, _ N1: CVarArgType, _ N2: CVarArgType) {DebugMsg(msg, N1, N2)}
+func DebugMessageN1(_ msg: String, _ N1: CVarArg) {DebugMsg(msg, N1)}
+func DebugMessageN2(_ msg: String, _ N1: CVarArg, _ N2: CVarArg) {DebugMsg(msg, N1, N2)}

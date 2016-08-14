@@ -65,7 +65,7 @@ class AQOfflineRenderTestAppDelegate: NSObject, UIApplicationDelegate {
     @IBOutlet var window: UIWindow?
     
     
-    func applicationDidFinishLaunching(application: UIApplication) {
+    func applicationDidFinishLaunching(_ application: UIApplication) {
         
         // Override point for customization after application launch
         window!.addSubview(navigationController.view)

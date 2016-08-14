@@ -68,10 +68,10 @@ typealias CAStreamBasicDescription = AudioStreamBasicDescription
 extension AudioStreamBasicDescription: CustomStringConvertible {
     
     enum CommonPCMFormat: Int {
-        case Other = 0
-        case Float32 = 1
-        case Int16 = 2
-        case Fixed824 = 3
+        case other = 0
+        case float32 = 1
+        case int16 = 2
+        case fixed824 = 3
     }
     
     //	Construction/Destruction
@@ -96,13 +96,13 @@ extension AudioStreamBasicDescription: CustomStringConvertible {
         mReserved = 0
         
         switch pcmf {
-        case .Float32:
+        case .float32:
             wordsize = 4
             mFormatFlags |= AudioFormatFlags(kAudioFormatFlagIsFloat)
-        case .Int16:
+        case .int16:
             wordsize = 2
             mFormatFlags |= AudioFormatFlags(kAudioFormatFlagIsSignedInteger)
-        case .Fixed824:
+        case .fixed824:
             wordsize = 4
             mFormatFlags |= AudioFormatFlags(kAudioFormatFlagIsSignedInteger | (24 << kLinearPCMFormatFlagsSampleFractionShift))
         default:
@@ -236,7 +236,7 @@ extension AudioStreamBasicDescription: CustomStringConvertible {
     //
     //	manipulation
     
-    mutating func setAUCanonical(nChannels: UInt32, interleaved: Bool) {
+    mutating func setAUCanonical(_ nChannels: UInt32, interleaved: Bool) {
         mFormatID = kAudioFormatLinearPCM;
         typealias AudioUnitSampleType = Int32
         let kAudioFormatFlagsCanonical = kAudioFormatFlagIsSignedInteger|kAudioFormatFlagIsPacked
@@ -247,12 +247,12 @@ extension AudioStreamBasicDescription: CustomStringConvertible {
         }
         mChannelsPerFrame = nChannels;
         mFramesPerPacket = 1;
-        mBitsPerChannel = 8 * UInt32(sizeof(AudioUnitSampleType))
+        mBitsPerChannel = 8 * UInt32(sizeof(AudioUnitSampleType.self))
         if interleaved {
-            mBytesPerFrame = nChannels * UInt32(sizeof(AudioUnitSampleType))
+            mBytesPerFrame = nChannels * UInt32(sizeof(AudioUnitSampleType.self))
             mBytesPerPacket = mBytesPerFrame
         } else {
-            mBytesPerFrame = UInt32(sizeof(AudioUnitSampleType))
+            mBytesPerFrame = UInt32(sizeof(AudioUnitSampleType.self))
             mBytesPerPacket = mBytesPerFrame
             mFormatFlags |= kAudioFormatFlagIsNonInterleaved;
         }
