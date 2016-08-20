@@ -58,7 +58,7 @@ import AVFoundation
 
 @objc protocol UIViewProtocol {
     // default = NULL. -animationDidStop:(NSString *)animationID finished:(NSNumber *)finished context:(void *)context
-    @objc optional func animationDidStop(_ animationID: String, finished: NSNumber, context: UnsafeMutablePointer<Void>)
+    @objc optional func animationDidStop(_ animationID: String, finished: NSNumber, context: UnsafeMutableRawPointer)
 }
 @objc(MyViewController)
 class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayerDelegate, UIViewProtocol {

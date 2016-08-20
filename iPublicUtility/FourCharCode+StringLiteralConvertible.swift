@@ -76,7 +76,7 @@ extension FourCharCode: ExpressibleByStringLiteral {
             CChar(truncatingBitPattern: (self >> 8) & 0xFF),
             CChar(truncatingBitPattern: self & 0xFF),
             ]
-        let data = Data(bytes: UnsafePointer<UInt8>(bytes), count: 4)
+        let data = Data(bytes: bytes, count: 4)
         return String(data: data, encoding: String.Encoding.isoLatin1)!
     }
     

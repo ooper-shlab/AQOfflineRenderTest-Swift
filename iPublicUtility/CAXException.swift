@@ -97,7 +97,7 @@ class CAXException: OOPException {
     }
     
     func formatError() -> String {
-        return self.dynamicType.formatError(mError)
+        return type(of: self).formatError(mError)
     }
     
     var mOperation: String

@@ -247,12 +247,12 @@ extension AudioStreamBasicDescription: CustomStringConvertible {
         }
         mChannelsPerFrame = nChannels;
         mFramesPerPacket = 1;
-        mBitsPerChannel = 8 * UInt32(sizeof(AudioUnitSampleType.self))
+        mBitsPerChannel = 8 * UInt32(MemoryLayout<AudioUnitSampleType>.size)
         if interleaved {
-            mBytesPerFrame = nChannels * UInt32(sizeof(AudioUnitSampleType.self))
+            mBytesPerFrame = nChannels * UInt32(MemoryLayout<AudioUnitSampleType>.size)
             mBytesPerPacket = mBytesPerFrame
         } else {
-            mBytesPerFrame = UInt32(sizeof(AudioUnitSampleType.self))
+            mBytesPerFrame = UInt32(MemoryLayout<AudioUnitSampleType>.size)
             mBytesPerPacket = mBytesPerFrame
             mFormatFlags |= kAudioFormatFlagIsNonInterleaved;
         }
