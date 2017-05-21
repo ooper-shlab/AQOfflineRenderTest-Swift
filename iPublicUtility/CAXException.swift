@@ -116,7 +116,7 @@ class CAXException: OOPException {
         sWarningHandler?(s, error)
     }
     
-    class func setWarningHandler(_ f: WarningHandler) { sWarningHandler = f }
+    class func setWarningHandler(_ f: @escaping WarningHandler) { sWarningHandler = f }
     private static var sWarningHandler: WarningHandler? = nil
     
     override var description: String {
