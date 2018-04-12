@@ -194,16 +194,16 @@ extension AudioStreamBasicDescription: CustomStringConvertible {
             let commaSpace = !packed.isEmpty || !align.isEmpty ? ", " : ""
             let bitdepth: String
             
-            if CA_PREFER_FIXED_POINT != 0 {
+            #if CA_PREFER_FIXED_POINT
                 let fracbits = (mFormatFlags & kLinearPCMFormatFlagsSampleFractionMask) >> kLinearPCMFormatFlagsSampleFractionShift
                 if fracbits > 0 {
                     bitdepth = "\(mBitsPerChannel - fracbits).\(fracbits)"
                 } else {
                     bitdepth = String(mBitsPerChannel)
                 }
-            } else {
+            #else
                 bitdepth = String(mBitsPerChannel)
-            }
+            #endif
             
             buf += "\(bitdepth)-bit\(endian)\(sign) \(floatInt)\(commaSpace)\(packed)\(align)\(deinter)"
         } else if mFormatID == kAudioFormatAppleLossless {
@@ -240,11 +240,11 @@ extension AudioStreamBasicDescription: CustomStringConvertible {
         mFormatID = kAudioFormatLinearPCM;
         typealias AudioUnitSampleType = Int32
         let kAudioFormatFlagsCanonical = kAudioFormatFlagIsSignedInteger|kAudioFormatFlagIsPacked
-        if CA_PREFER_FIXED_POINT != 0 {
+        #if CA_PREFER_FIXED_POINT
             mFormatFlags = kAudioFormatFlagsCanonical | (UInt32(kAudioUnitSampleFractionBits) << kLinearPCMFormatFlagsSampleFractionShift)
-        } else {
+        #else
             mFormatFlags = kAudioFormatFlagsCanonical
-        }
+        #endif
         mChannelsPerFrame = nChannels;
         mFramesPerPacket = 1;
         mBitsPerChannel = 8 * UInt32(MemoryLayout<AudioUnitSampleType>.size)

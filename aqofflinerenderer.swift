@@ -176,7 +176,30 @@ private let AQTestBufferCallback: AudioQueueOutputCallback = {(inUserData, inAQ,
 func DoAQOfflineRender(_ sourceURL: URL, _ destinationURL: URL) {
     // main audio queue code
     do {
-        var myInfo: AQTestInfo = AQTestInfo()
+        var myInfoPtr: UnsafeMutablePointer<AQTestInfo>? = nil
+        var myInfo: AQTestInfo {
+            get {
+                if myInfoPtr == nil {
+                    myInfoPtr = .allocate(capacity: 1)
+                    myInfoPtr!.initialize(to: AQTestInfo())
+                }
+                return myInfoPtr!.pointee
+            }
+            set {
+                if let myInfoPtr = myInfoPtr {
+                    myInfoPtr.pointee = newValue
+                } else {
+                    myInfoPtr = .allocate(capacity: 1)
+                    myInfoPtr!.initialize(to: newValue)
+                }
+            }
+        }
+        myInfo = AQTestInfo()
+        defer {
+            myInfoPtr?.pointee.mPacketDescs?.deallocate()
+            myInfoPtr?.deinitialize(count: 1)
+            myInfoPtr?.deallocate()
+        }
         
         myInfo.mDone = false
         myInfo.mFlushed = false
@@ -184,23 +207,29 @@ func DoAQOfflineRender(_ sourceURL: URL, _ destinationURL: URL) {
         
         // get the source file
         let fsRdPerm = AudioFilePermissions(rawValue: 0x01)!
-        try XThrowIfError(AudioFileOpenURL(sourceURL as CFURL, fsRdPerm, 0/*inFileTypeHint*/, &myInfo.mAudioFile), "AudioFileOpen failed")
+        var audioFile: AudioFileID? = nil
+        try XThrowIfError(AudioFileOpenURL(sourceURL as CFURL, fsRdPerm, 0/*inFileTypeHint*/, &audioFile), "AudioFileOpen failed")
+        myInfo.mAudioFile = audioFile
         
         var size = UInt32(MemoryLayout<CAStreamBasicDescription>.size)
-        try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile!, kAudioFilePropertyDataFormat, &size, &myInfo.mDataFormat), "couldn't get file's data format")
-        
+        var dataFormat: CAStreamBasicDescription = CAStreamBasicDescription()
+        try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile!, kAudioFilePropertyDataFormat, &size, &dataFormat), "couldn't get file's data format")
+        myInfo.mDataFormat = dataFormat
+
         print("File format: \(myInfo.mDataFormat)")
         
         // create a new audio queue output
-        try XThrowIfError(AudioQueueNewOutput(&myInfo.mDataFormat,      // The data format of the audio to play. For linear PCM, only interleaved formats are supported.
+        var queue: AudioQueueRef? = nil
+        try XThrowIfError(AudioQueueNewOutput(&dataFormat,      // The data format of the audio to play. For linear PCM, only interleaved formats are supported.
             AQTestBufferCallback,     // A callback function to use with the playback audio queue.
-            &myInfo,                  // A custom data structure for use with the callback function.
+            myInfoPtr,                  // A custom data structure for use with the callback function.
             CFRunLoopGetCurrent(),    // The event loop on which the callback function pointed to by the inCallbackProc parameter is to be called.
             // If you specify NULL, the callback is invoked on one of the audio queue’s internal threads.
             CFRunLoopMode.commonModes.rawValue,    // The run loop mode in which to invoke the callback function specified in the inCallbackProc parameter.
             0,                        // Reserved for future use. Must be 0.
-            &myInfo.mQueue),          // On output, the newly created playback audio queue object.
+            &queue),          // On output, the newly created playback audio queue object.
             "AudioQueueNew failed")
+        myInfo.mQueue = queue
         
         var bufferByteSize: UInt32 = 0
         
@@ -216,7 +245,9 @@ func DoAQOfflineRender(_ sourceURL: URL, _ destinationURL: URL) {
             try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile!, kAudioFilePropertyPacketSizeUpperBound, &size, &maxPacketSize), "couldn't get file's max packet size")
             
             // adjust buffer size to represent about a second of audio based on this format
-            CalculateBytesForTime(myInfo.mDataFormat, maxPacketSize, 1.0/*seconds*/, &bufferByteSize, &myInfo.mNumPacketsToRead)
+            var numPacketsToRead: UInt32 = 0
+            CalculateBytesForTime(myInfo.mDataFormat, maxPacketSize, 1.0/*seconds*/, &bufferByteSize, &numPacketsToRead)
+            myInfo.mNumPacketsToRead = numPacketsToRead
             
             if isFormatVBR {
                 myInfo.mPacketDescs = UnsafeMutablePointer.allocate(capacity: Int(myInfo.mNumPacketsToRead))
@@ -236,7 +267,7 @@ func DoAQOfflineRender(_ sourceURL: URL, _ destinationURL: URL) {
             let cookie = UnsafeMutablePointer<CChar>.allocate(capacity: Int(size))
             try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile!, kAudioFilePropertyMagicCookieData, &size, cookie), "get cookie from file")
             try XThrowIfError(AudioQueueSetProperty(myInfo.mQueue!, kAudioQueueProperty_MagicCookie, cookie, size), "set cookie on queue")
-            cookie.deallocate(capacity: Int(size))
+            cookie.deallocate()
         }
         
         // channel layout?
@@ -246,14 +277,16 @@ func DoAQOfflineRender(_ sourceURL: URL, _ destinationURL: URL) {
         var aclSize = 0
         if err == noErr && size > 0 {
             aclSize = Int(size)
-            rawAcl = UnsafeMutableRawPointer.allocate(bytes: aclSize, alignedTo: MemoryLayout<AudioChannelLayout>.alignment)
+            rawAcl = UnsafeMutableRawPointer.allocate(byteCount: aclSize, alignment: MemoryLayout<AudioChannelLayout>.alignment)
             acl = rawAcl?.bindMemory(to: AudioChannelLayout.self, capacity: 1)
             try XThrowIfError(AudioFileGetProperty(myInfo.mAudioFile!, kAudioFilePropertyChannelLayout, &size, acl!), "get audio file's channel layout")
             try XThrowIfError(AudioQueueSetProperty(myInfo.mQueue!, kAudioQueueProperty_ChannelLayout, acl!, size), "set channel layout on queue")
         }
         
         //allocate the input read buffer
-        try XThrowIfError(AudioQueueAllocateBuffer(myInfo.mQueue!, bufferByteSize, &myInfo.mBuffer), "AudioQueueAllocateBuffer")
+        var buffer: AudioQueueBufferRef? = nil
+        try XThrowIfError(AudioQueueAllocateBuffer(myInfo.mQueue!, bufferByteSize, &buffer), "AudioQueueAllocateBuffer")
+        myInfo.mBuffer = buffer
         
         // prepare a canonical interleaved capture format
         var captureFormat: CAStreamBasicDescription = CAStreamBasicDescription()
@@ -306,7 +339,7 @@ func DoAQOfflineRender(_ sourceURL: URL, _ destinationURL: URL) {
         try XThrowIfError(AudioQueueOfflineRender(myInfo.mQueue!, &ts, captureBuffer!, 0), "AudioQueueOfflineRender")
         
         // we need to enqueue a buffer after the queue has started
-        AQTestBufferCallback(&myInfo, myInfo.mQueue!, myInfo.mBuffer!)
+        AQTestBufferCallback(myInfoPtr, myInfo.mQueue!, myInfo.mBuffer!)
         
         while true {
             let reqFrames = captureBufferByteSize / captureFormat.mBytesPerFrame
@@ -332,8 +365,7 @@ func DoAQOfflineRender(_ sourceURL: URL, _ destinationURL: URL) {
         try XThrowIfError(AudioFileClose(myInfo.mAudioFile!), "AudioQueueDispose(false) failed")
         try XThrowIfError(ExtAudioFileDispose(captureFile!), "ExtAudioFileDispose failed")
         
-        if myInfo.mPacketDescs != nil {myInfo.mPacketDescs?.deallocate(capacity: Int(myInfo.mNumPacketsToRead))}
-        if let rawAcl = rawAcl {rawAcl.deallocate(bytes: aclSize, alignedTo: MemoryLayout<AudioChannelLayout>.alignment)}
+        if let rawAcl = rawAcl {rawAcl.deallocate()}
     } catch let e as CAXException {
         fputs("Error: \(e.mOperation) \(e.formatError())", stderr)
     } catch _ {

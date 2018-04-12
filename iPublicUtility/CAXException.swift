@@ -68,14 +68,12 @@ class CAX4CCString {
             str[0] = UInt8(ascii: "\'")
             str[5] = UInt8(ascii: "\'")
             str[6] = 0
-            mStr = str.withUnsafeBufferPointer{bufPtr in
-                String(cString: UnsafePointer(bufPtr.baseAddress!))
-            }
+            mStr = String(cString: str)
         } else if error > -200000 && error < 200000 {
             // no, format it as an integer
             mStr = String(Int32(error))
         } else {
-            mStr = "0x" + String(Int32(error), radix: 16)
+            mStr = "0x" + String(UInt32(bitPattern: error), radix: 16)
         }
     }
     func get() -> String {

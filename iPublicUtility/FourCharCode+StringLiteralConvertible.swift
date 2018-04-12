@@ -70,27 +70,27 @@ extension FourCharCode: ExpressibleByStringLiteral {
     }
     
     public var fourCharString: String {
-        let bytes: [CChar] = [
-            CChar(truncatingBitPattern: (self >> 24) & 0xFF),
-            CChar(truncatingBitPattern: (self >> 16) & 0xFF),
-            CChar(truncatingBitPattern: (self >> 8) & 0xFF),
-            CChar(truncatingBitPattern: self & 0xFF),
+        let bytes: [UInt8] = [
+            UInt8(truncatingIfNeeded: (self >> 24) & 0xFF),
+            UInt8(truncatingIfNeeded: (self >> 16) & 0xFF),
+            UInt8(truncatingIfNeeded: (self >> 8) & 0xFF),
+            UInt8(truncatingIfNeeded: self & 0xFF),
             ]
         let data = Data(bytes: bytes, count: 4)
         return String(data: data, encoding: String.Encoding.isoLatin1)!
     }
     
     public var possibleFourCharString: String {
-        var bytes: [CChar] = [
-            CChar(truncatingBitPattern: (self >> 24) & 0xFF),
-            CChar(truncatingBitPattern: (self >> 16) & 0xFF),
-            CChar(truncatingBitPattern: (self >> 8) & 0xFF),
-            CChar(truncatingBitPattern: self & 0xFF),
+        var bytes: [UInt8] = [
+            UInt8(truncatingIfNeeded: (self >> 24) & 0xFF),
+            UInt8(truncatingIfNeeded: (self >> 16) & 0xFF),
+            UInt8(truncatingIfNeeded: (self >> 8) & 0xFF),
+            UInt8(truncatingIfNeeded: self & 0xFF),
             0
         ]
         for i in 0..<4 {
             if bytes[i] < 0x20 || bytes[i] > 0x7E {
-                bytes[i] = CChar(("?" as UnicodeScalar).value)
+                bytes[i] = UInt8(ascii: "?")
             }
         }
         return String(cString: bytes)

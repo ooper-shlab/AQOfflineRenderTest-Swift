@@ -106,13 +106,13 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
         
         // add our custom flip buttons as the nav bars custom right view
         let infoButton = UIButton(type: .infoLight)
-        infoButton.addTarget(self, action: #selector(MyViewController.flipAction(_:)), for: .touchUpInside)
+        infoButton.addTarget(self, action: #selector(self.flipAction(_:)), for: .touchUpInside)
         
         flipButton = UIBarButtonItem(customView: infoButton)
         self.navigationItem.rightBarButtonItem = flipButton
         
         // create our done button as the nav bar's custom right view for the flipped view (used later)
-        doneButton = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(MyViewController.flipAction(_:)))
+        doneButton = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(self.flipAction(_:)))
     }
     
     override func didReceiveMemoryWarning() {
@@ -125,7 +125,7 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
     
     //MARK:- Actions
     
-    func flipAction(_: AnyObject) {
+    @objc func flipAction(_: Any) {
         UIView.setAnimationDelegate(self)
         UIView.setAnimationDidStop(#selector(UIViewProtocol.animationDidStop(_:finished:context:)))
         UIView.beginAnimations(nil, context: nil)
@@ -153,7 +153,7 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
         }
     }
     
-    @IBAction func doSomethingAction(_: AnyObject) {
+    @IBAction func doSomethingAction(_: Any) {
         self.startButton.setTitle("Rendering Audio...", for: .disabled)
         startButton.isEnabled = false
         
@@ -197,11 +197,11 @@ class MyViewController: UIViewController, UINavigationBarDelegate, AVAudioPlayer
             
             DoAQOfflineRender(sourceURL!, destinationURL!)
             
-            self.activityIndicator.stopAnimating()
-            
-            self.startButton.setTitle("Playing Rendered Audio...", for: .disabled)
-            
             DispatchQueue.main.async {
+                self.activityIndicator.stopAnimating()
+                
+                self.startButton.setTitle("Playing Rendered Audio...", for: .disabled)
+                
                 self.playAudio()
             }
             
